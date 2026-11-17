@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Vault</title>
+<meta name="theme-color" content="#E7EDE3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121C18" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Vault">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+:root {
+  --paper: #E7EDE3;      /* ledger paper */
+  --sheet: #F4F7F1;      /* a slip laid on the paper */
+  --ink: #18243A;        /* navy ledger ink */
+  --soft: #55626C;       /* secondary ink */
+  --rule: #B7C6B1;       /* ledger rule green */
+  --brass: #94701F;      /* dial brass: calories taken out */
+  --brass-bg: #E9DDBC;
+  --red: #A1302A;        /* red ink: calories put back, or over target */
+  --num: "DIN Condensed", "DIN Alternate", "Avenir Next Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --head: "Bodoni 72", "Didot", "Bodoni MT", Georgia, serif;
+  --body: "Avenir Next", -apple-system, "Helvetica Neue", "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #121C18; --sheet: #1A2721; --ink: #E3EADF; --soft: #9AA9A0;
+    --rule: #33463C; --brass: #D2AB55; --brass-bg: #3A3320; --red: #E0766E;
+  }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { -webkit-text-size-adjust: 100%; touch-action: pan-x pan-y; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font: 16px/1.4 var(--body);
+  padding: env(safe-area-inset-top) 0 calc(72px + env(safe-area-inset-bottom));
+  -webkit-user-select: none; user-select: none;
+}
+main { max-width: 480px; margin: 0 auto; padding: 0 18px; }
+h1, h2 { font-family: var(--head); font-weight: 400; margin: 0; }
+h2 { font-size: 22px; line-height: 1.15; }
+.num { font-family: var(--num); font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+.soft { color: var(--soft); }
+.small { font-size: 13px; }
+[hidden] { display: none !important; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+
+/* ---------- top line ---------- */
+.top { display: flex; justify-content: space-between; align-items: baseline; padding: 14px 0 0; }
+.top h1 { font-size: 26px; }
+
+/* ---------- the dial ---------- */
+.dial { position: relative; margin: 6px auto 0; max-width: 340px; }
+.dial svg { display: block; width: 100%; height: auto; }
+.tick { stroke: var(--rule); stroke-width: 2; stroke-linecap: round; }
+.tick.ten { stroke-width: 3; }
+.tick.out { stroke: var(--brass); }
+.dial .plate { fill: var(--sheet); stroke: var(--rule); stroke-width: 1.5; }
+.dial .pointer { fill: var(--brass); }
+.dial-mid { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding-top: 6px; }
+.balance { font-size: 60px; line-height: .95; }
+.dial-mid .of { margin-top: 2px; font-size: 14px; color: var(--soft); }
+.dial-mid .pct { margin-top: 8px; font-size: 14px; color: var(--brass); font-weight: 600; }
+
+.trio { display: grid; grid-template-columns: repeat(3, 1fr); margin: 8px 0 0; border-top: 1.5px solid var(--ink); border-bottom: 1px solid var(--rule); }
+.trio div { padding: 10px 0 9px; }
+.trio div + div { border-left: 1px solid var(--rule); padding-left: 12px; }
+.trio .num { font-size: 26px; line-height: 1; display: block; }
+.trio span.l { font-size: 12.5px; color: var(--soft); }
+
+/* ---------- sections ---------- */
+section { margin-top: 26px; }
+.sec-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding-bottom: 6px; border-bottom: 1.5px solid var(--ink); }
+.chip { font-size: 12.5px; padding: 2px 8px; border-radius: 3px; background: var(--brass-bg); color: var(--ink); white-space: nowrap; }
+
+/* the day's slip: burned − eaten = out of the vault */
+.slip { background: var(--sheet); border: 1px solid var(--rule); border-top: 0; padding: 12px 14px 12px; }
+.slip-row { display: flex; justify-content: space-between; align-items: baseline; padding: 3px 0; }
+.slip-row .num { font-size: 24px; }
+.slip-row.total { border-top: 1.5px solid var(--ink); margin-top: 6px; padding-top: 8px; font-weight: 600; }
+.slip-row.total .num { font-size: 34px; color: var(--brass); }
+.slip-row.total.back .num { color: var(--red); }
+.slip .small { margin-top: 6px; }
+
+/* targets */
+.bar-row { padding: 9px 0 8px; border-bottom: 1px solid var(--rule); }
+.bar-top { display: flex; justify-content: space-between; align-items: baseline; }
+.bar-top .num { font-size: 21px; }
+.bar { height: 6px; background: var(--rule); margin-top: 5px; position: relative; }
+.bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ink); }
+.bar.over i { background: var(--red); }
+.tgt-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+.tgt-table th { text-align: right; font-weight: 400; color: var(--soft); padding: 4px 0; }
+.tgt-table th:first-child, .tgt-table td:first-child { text-align: left; }
+.tgt-table td { text-align: right; padding: 4px 0; border-top: 1px solid var(--rule); }
+.tgt-table td.num { font-size: 18px; }
+
+/* ledger lines (meals, training, history) */
+.line { display: grid; grid-template-columns: 58px 1fr auto; gap: 8px; padding: 9px 0; border-bottom: 1px solid var(--rule); align-items: baseline; }
+.line .t { font-size: 13px; color: var(--soft); }
+.line .what { min-width: 0; }
+.line .what .d { font-size: 13px; color: var(--soft); }
+.line .amt { text-align: right; }
+.line .amt .num { font-size: 22px; line-height: 1; }
+.line .amt .d { font-size: 12.5px; color: var(--soft); }
+button.line { width: 100%; background: none; border: 0; border-bottom: 1px solid var(--rule); text-align: left; cursor: pointer; }
+button.line:active { background: var(--sheet); }
+.week-head { display: flex; justify-content: space-between; align-items: baseline; margin-top: 22px; padding-bottom: 5px; border-bottom: 1.5px solid var(--ink); }
+.week-head .num { font-size: 20px; }
+.red { color: var(--red); }
+.brass { color: var(--brass); }
+
+.weigh { display: flex; justify-content: space-between; align-items: flex-end; padding: 10px 0; border-bottom: 1px solid var(--rule); }
+.weigh .num.big { font-size: 46px; line-height: .95; }
+.weigh .r { text-align: right; }
+.weigh .r .num { font-size: 24px; }
+
+.empty { padding: 18px 0; color: var(--soft); }
+.chart { display: block; width: 100%; height: auto; margin-top: 10px; }
+.chart .axis { stroke: var(--rule); stroke-width: 1; }
+.chart .ln { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; }
+.chart .dot { fill: var(--ink); }
+.chart .goal { stroke: var(--brass); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.chart text { font: 11px var(--body); fill: var(--soft); }
+.chart .b { fill: var(--brass); }
+.chart .b.neg { fill: var(--red); }
+
+/* ---------- tabs ---------- */
+nav { position: fixed; left: 0; right: 0; bottom: 0; background: var(--paper); border-top: 1.5px solid var(--ink); padding-bottom: env(safe-area-inset-bottom); z-index: 5; }
+nav div { max-width: 480px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); }
+nav button { height: 56px; background: none; border: 0; font-family: var(--head); font-size: 19px; color: var(--soft); cursor: pointer; }
+nav button[aria-current="page"] { color: var(--ink); box-shadow: inset 0 3px 0 var(--brass); }
+
+/* ---------- day sheet ---------- */
+dialog { border: 0; padding: 0; margin: 0; width: 100%; max-width: 100%; height: 100%; max-height: 100%; background: var(--paper); color: var(--ink); }
+dialog::backdrop { background: var(--paper); }
+.sheet-in { max-width: 480px; margin: 0 auto; padding: calc(env(safe-area-inset-top) + 6px) 18px calc(env(safe-area-inset-bottom) + 30px); }
+.back { height: 48px; padding: 0 14px 0 0; background: none; border: 0; font-size: 16px; color: var(--brass); font-weight: 600; cursor: pointer; }
+
+/* ---------- sign in ---------- */
+#authScreen { position: fixed; inset: 0; background: var(--paper); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 24px; }
+#authScreen form { width: 100%; max-width: 340px; }
+#authScreen h1 { font-size: 40px; margin-bottom: 4px; }
+#authScreen label { display: block; margin-top: 16px; font-size: 14px; color: var(--soft); }
+#authScreen input { width: 100%; height: 48px; margin-top: 4px; padding: 0 12px; font: 16px var(--body); color: var(--ink); background: var(--sheet); border: 1px solid var(--rule); border-radius: 3px; -webkit-user-select: text; user-select: text; }
+#authBtn { width: 100%; height: 50px; margin-top: 22px; background: var(--ink); color: var(--paper); border: 0; border-radius: 3px; font-weight: 600; cursor: pointer; }
+#authErr { min-height: 20px; margin-top: 10px; color: var(--red); font-size: 14px; }
+.foot { margin: 34px 0 10px; display: flex; justify-content: space-between; font-size: 13px; color: var(--soft); }
+.foot button { background: none; border: 0; padding: 6px 0; color: var(--soft); text-decoration: underline; cursor: pointer; }
+#loading { padding: 80px 0; text-align: center; color: var(--soft); }
+@media (prefers-reduced-motion: no-preference) {
+  .tick { transition: stroke .25s; }
+  .pointer-g { transition: transform 1.1s cubic-bezier(.2,.7,.2,1); }
+}
+</style>
+</head>
+<body>
+
+<div id="authScreen" hidden>
+  <form id="authForm" autocomplete="on">
+    <h1>Vault</h1>
+    <div class="soft">Sign in with the same account as your other apps.</div>
+    <label for="authEmail">Email</label>
+    <input id="authEmail" type="email" autocomplete="username" required>
+    <label for="authPass">Password</label>
+    <input id="authPass" type="password" autocomplete="current-password" required>
+    <button id="authBtn" type="submit">Sign in</button>
+    <div id="authErr" role="alert"></div>
+  </form>
+</div>
+
+<main>
+  <div id="loading">Opening the vault…</div>
+
+  <div id="tab-vault" hidden>
+    <div class="top"><h1>Vault</h1><span class="soft small" id="updated"></span></div>
+    <div class="dial">
+      <svg viewBox="0 0 320 320" role="img" aria-labelledby="dialLabel">
+        <title id="dialLabel">Vault dial</title>
+        <g id="ticks"></g>
+        <circle class="plate" cx="160" cy="160" r="112"/>
+        <g class="pointer-g" id="pointer" style="transform-origin:160px 160px"><path class="pointer" d="M160 30 l7 13 h-14 z"/></g>
+      </svg>
+      <div class="dial-mid">
+        <div class="num balance" id="balance">–</div>
+        <div class="of" id="ofLine"></div>
+        <div class="pct" id="pctLine"></div>
+      </div>
+    </div>
+    <div class="trio">
+      <div><span class="num" id="outTotal">–</span><span class="l">kcal taken out</span></div>
+      <div><span class="num" id="lbLeft">–</span><span class="l">lb of fat left</span></div>
+      <div><span class="num" id="emptyBy">–</span><span class="l" id="emptyByL">vault empty by</span></div>
+    </div>
+
+    <section>
+      <div class="sec-head"><h2>Latest weigh-in</h2><span class="soft small" id="weighDate"></span></div>
+      <div id="weighBox"></div>
+    </section>
+
+    <div id="dayBox"></div>
+
+    <section>
+      <div class="sec-head"><h2>Current targets</h2><span class="soft small" id="phase"></span></div>
+      <div id="targetsBox"></div>
+    </section>
+
+    <div class="foot"><span id="ver"></span><button id="signOut" hidden>Sign out</button></div>
+  </div>
+
+  <div id="tab-history" hidden>
+    <div class="top"><h1>History</h1><span class="soft small" id="histCount"></span></div>
+    <div id="historyBox"></div>
+  </div>
+
+  <div id="tab-trends" hidden>
+    <div class="top"><h1>Trends</h1></div>
+    <div id="trendsBox"></div>
+  </div>
+</main>
+
+<nav><div>
+  <button data-tab="vault" aria-current="page">Vault</button>
+  <button data-tab="history">History</button>
+  <button data-tab="trends">Trends</button>
+</div></nav>
+
+<dialog id="daySheet"><div class="sheet-in">
+  <button class="back" id="sheetBack">‹ History</button>
+  <div id="sheetBody"></div>
+</div></dialog>
+
+<script>
+/* ===============================================================
+   Vault — read-only dashboard. All numbers come from Firestore;
+   this repo is public, so no personal data lives in the code.
+   =============================================================== */
+const APP_VERSION = 1;   // keep equal to the N in sw.js CACHE
+
+const $ = id => document.getElementById(id);
+const fmt = n => Math.round(n).toLocaleString('en-US');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const parseDate = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const isoDate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const dayName = (s, o) => parseDate(s).toLocaleDateString('en-US', o || { weekday: 'long', month: 'short', day: 'numeric' });
+const shortDate = s => dayName(s, { month: 'short', day: 'numeric' });
+const mondayOf = s => { const d = parseDate(s); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return isoDate(d); };
+
+const Store = { state: null, days: [] };
+
+/* ---------- vault arithmetic ---------- */
+const STATUS_NOTE = {
+  open: 'In progress',
+  provisional: 'Awaiting final watch data',
+  closed: 'Closed'
+};
+const counts = d => d.status === 'closed' || d.status === 'provisional';
+const eaten = d => d.intake || (d.meals || []).reduce((a, m) => ({
+  kcal: a.kcal + (m.kcal || 0), protein: a.protein + (m.protein || 0), fat: a.fat + (m.fat || 0), carbs: a.carbs + (m.carbs || 0)
+}), { kcal: 0, protein: 0, fat: 0, carbs: 0 });
+const hasBurn = d => d.burn && typeof d.burn.conservative === 'number';
+/* Positive = calories taken out of the vault (a deficit). Negative = put back (a surplus). */
+const withdrawal = d => hasBurn(d) ? d.burn.conservative - eaten(d).kcal : 0;
+
+function vaultMath() {
+  const v = Store.state.vault;
+  const size = v.size ?? Math.round((v.startWeight - v.goalWeight) * (v.kcalPerLb || 3500));
+  const ledger = [];
+  let bal = size;
+  const adj = (Store.state.adjustments || []).map(a => ({ ...a, isAdj: true }));
+  const rows = [...Store.days.filter(d => counts(d) && hasBurn(d)), ...adj].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : (a.isAdj ? 1 : -1));
+  for (const r of rows) {
+    const out = r.isAdj ? r.kcal : withdrawal(r);
+    bal -= out;
+    ledger.push({ date: r.date, out, balance: bal, isAdj: !!r.isAdj, reason: r.reason });
+  }
+  const out = size - bal;
+  const dayRows = ledger.filter(r => !r.isAdj);
+  const recent = dayRows.slice(-14);
+  const avg = recent.length ? recent.reduce((a, r) => a + r.out, 0) / recent.length : 0;
+  let emptyBy = null;
+  if (recent.length >= 1 && avg > 0 && bal > 0) {
+    const d = parseDate(dayRows[dayRows.length - 1].date);
+    d.setDate(d.getDate() + Math.ceil(bal / avg));
+    emptyBy = d;
+  }
+  return { size, bal, out, ledger, avg, emptyBy, nDays: dayRows.length, kcalPerLb: v.kcalPerLb || 3500 };
+}
+
+/* ---------- pieces shared by the Vault tab and the day sheet ---------- */
+function dayHTML(d) {
+  const e = eaten(d), t = d.target || {};
+  const w = withdrawal(d);
+  let h = `<section><div class="sec-head"><h2>${esc(dayName(d.date))}</h2><span class="chip">${esc(STATUS_NOTE[d.status] || d.status || '')}</span></div>`;
+  h += `<div class="slip">`;
+  if (hasBurn(d)) {
+    h += `<div class="slip-row"><span>Burned${d.status === 'closed' ? '' : ' (estimate)'}</span><span class="num">${fmt(d.burn.conservative)}</span></div>`;
+    h += `<div class="slip-row"><span>Eaten</span><span class="num">− ${fmt(e.kcal)}</span></div>`;
+    h += `<div class="slip-row total ${w < 0 ? 'back' : ''}"><span>${w < 0 ? 'Put back in the vault' : 'Out of the vault'}</span><span class="num">${fmt(Math.abs(w))}</span></div>`;
+    const bits = [];
+    if (d.burn.low && d.burn.high) bits.push(`Likely range ${fmt(d.burn.low)} to ${fmt(d.burn.high)} burned.`);
+    if (d.burn.watch) bits.push(`The watch ${d.status === 'closed' ? 'said' : 'is on track for'} ${fmt(d.burn.watch)}; the vault uses the conservative figure.`);
+    if (d.status === 'open') bits.push('Not counted in the vault until the day ends.');
+    if (bits.length) h += `<div class="small soft">${bits.join(' ')}</div>`;
+  } else {
+    h += `<div class="slip-row"><span>Eaten so far</span><span class="num">${fmt(e.kcal)}</span></div>`;
+    h += `<div class="small soft">No burn figure yet. It arrives after your watch data syncs.</div>`;
+  }
+  h += `</div>`;
+  if (d.dayType) h += `<div class="small soft" style="margin-top:8px">${esc(d.dayType)}${d.note ? '. ' + esc(d.note) : ''}</div>`;
+  h += `</section>`;
+
+  if (t.kcal) {
+    h += `<section><div class="sec-head"><h2>Eaten against target</h2></div>`;
+    for (const [k, label, unit] of [['kcal', 'Calories', ''], ['protein', 'Protein', ' g'], ['fat', 'Fat', ' g'], ['carbs', 'Carbs', ' g']]) {
+      if (!t[k]) continue;
+      const pct = Math.min(100, (e[k] / t[k]) * 100), diff = Math.round(e[k] - t[k]);
+      const over = k !== 'protein' && diff > t[k] * 0.05;
+      const left = diff === 0 ? 'on target' : diff < 0 ? `${fmt(-diff)}${unit} left` : `${fmt(diff)}${unit} over`;
+      h += `<div class="bar-row"><div class="bar-top"><span>${label} <span class="soft small">${left}</span></span><span><span class="num">${fmt(e[k])}</span> <span class="soft small">of ${fmt(t[k])}${unit}</span></span></div><div class="bar ${over ? 'over' : ''}"><i style="width:${pct}%"></i></div></div>`;
+    }
+    h += `</section>`;
+  }
+
+  h += `<section><div class="sec-head"><h2>Meals</h2><span class="soft small">${(d.meals || []).length} logged</span></div>`;
+  if (!(d.meals || []).length) h += `<div class="empty">Nothing logged yet. Tell Claude what you ate and it shows up here.</div>`;
+  for (const m of d.meals || []) {
+    h += `<div class="line"><span class="t">${esc(m.time || '')}</span><span class="what">${esc(m.name)}${m.detail ? `<div class="d">${esc(m.detail)}</div>` : ''}</span><span class="amt"><span class="num">${fmt(m.kcal)}</span><div class="d">${fmt(m.protein || 0)} g protein</div></span></div>`;
+  }
+  h += `</section>`;
+
+  if ((d.training || []).length) {
+    h += `<section><div class="sec-head"><h2>Training</h2></div>`;
+    for (const x of d.training) {
+      h += `<div class="line"><span class="t">${esc(x.time || '')}</span><span class="what">${esc(x.name)}${x.detail ? `<div class="d">${esc(x.detail)}</div>` : ''}</span><span class="amt">${x.kcal ? `<span class="num">${fmt(x.kcal)}</span><div class="d">kcal, adjusted</div>` : ''}</span></div>`;
+    }
+    h += `</section>`;
+  }
+  return h;
+}
+
+function weighIns() {
+  return [...(Store.state.weighIns || [])].sort((a, b) => a.date < b.date ? -1 : 1);
+}
+function avg7(list, i) {
+  const end = parseDate(list[i].date), start = new Date(end); start.setDate(start.getDate() - 6);
+  const w = list.filter(x => { const d = parseDate(x.date); return d >= start && d <= end; });
+  return w.reduce((a, x) => a + x.lb, 0) / w.length;
+}
+
+/* ---------- Vault tab ---------- */
+function renderVault() {
+  const m = vaultMath(), v = Store.state.vault;
+  // dial: 100 ticks, each 1% of the vault
+  const pct = Math.max(0, Math.min(100, (m.out / m.size) * 100));
+  let ticks = '';
+  for (let i = 0; i < 100; i++) {
+    const a = (i / 100) * 2 * Math.PI - Math.PI / 2, ten = i % 10 === 0;
+    const r1 = ten ? 124 : 130, r2 = 142;
+    ticks += `<line class="tick ${ten ? 'ten' : ''} ${i < Math.floor(pct) ? 'out' : ''}" x1="${(160 + r1 * Math.cos(a)).toFixed(1)}" y1="${(160 + r1 * Math.sin(a)).toFixed(1)}" x2="${(160 + r2 * Math.cos(a)).toFixed(1)}" y2="${(160 + r2 * Math.sin(a)).toFixed(1)}"/>`;
+  }
+  $('ticks').innerHTML = ticks;
+  requestAnimationFrame(() => { $('pointer').style.transform = `rotate(${pct * 3.6}deg)`; });
+  countTo($('balance'), m.bal, m.size);
+  $('ofLine').textContent = `kcal left of ${fmt(m.size)}`;
+  $('pctLine').textContent = `${pct < 10 ? pct.toFixed(1) : Math.round(pct)}% emptied`;
+  $('outTotal').textContent = fmt(m.out);
+  $('lbLeft').textContent = (Math.max(0, m.bal) / m.kcalPerLb).toFixed(1);
+  if (m.emptyBy) {
+    const n = Math.min(m.nDays, 14);
+    $('emptyBy').textContent = m.emptyBy.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    $('emptyByL').textContent = n < 7 ? `empty by. Rough: ${n} day${n === 1 ? '' : 's'} of data` : `empty by, at ${fmt(m.avg)} a day`;
+  } else {
+    $('emptyBy').textContent = '–';
+    $('emptyByL').textContent = m.nDays ? 'no finish date while the vault is filling' : 'finish date after day one';
+  }
+
+  const wl = weighIns();
+  if (wl.length) {
+    const last = wl[wl.length - 1], toGo = last.lb - v.goalWeight, lost = v.startWeight - last.lb;
+    $('weighDate').textContent = dayName(last.date, { weekday: 'short', month: 'short', day: 'numeric' });
+    $('weighBox').innerHTML = `<div class="weigh"><div><span class="num big">${last.lb.toFixed(1)}</span> lb<div class="small soft">${wl.length >= 3 ? `7-day average ${avg7(wl, wl.length - 1).toFixed(1)}` : 'Started at ' + v.startWeight.toFixed(1)}</div></div><div class="r"><span class="num">${toGo.toFixed(1)}</span> lb to ${v.goalWeight.toFixed(1)}<div class="small soft">${lost > 0.05 ? lost.toFixed(1) + ' lb down on the scale' : lost < -0.05 ? (-lost).toFixed(1) + ' lb up on the scale' : 'Day one on the scale'}</div></div></div>`;
+  } else {
+    $('weighBox').innerHTML = `<div class="empty">No weigh-in yet. Tell Claude your morning weight.</div>`;
+  }
+
+  const latest = Store.days[Store.days.length - 1];
+  $('dayBox').innerHTML = latest ? dayHTML(latest) : `<section><div class="empty">No days logged yet. Tell Claude what you ate and the day appears here.</div></section>`;
+
+  const t = Store.state.targets || {};
+  $('phase').textContent = t.phase || '';
+  const cols = [['training', 'Training day'], ['rest', 'Rest day']].filter(([k]) => t[k]);
+  if (cols.length) {
+    let h = `<table class="tgt-table"><tr><th></th>${cols.map(([, l]) => `<th>${l}</th>`).join('')}</tr>`;
+    for (const [k, label, unit] of [['kcal', 'Calories', ''], ['protein', 'Protein', ' g'], ['fat', 'Fat', ' g'], ['carbs', 'Carbs', ' g']]) {
+      h += `<tr><td>${label}</td>${cols.map(([c]) => `<td class="num">${fmt(t[c][k])}${unit}</td>`).join('')}</tr>`;
+    }
+    h += `</table>${t.note ? `<div class="small soft" style="margin-top:8px">${esc(t.note)}</div>` : ''}`;
+    $('targetsBox').innerHTML = h;
+  }
+  if (Store.state.updatedAt) {
+    $('updated').textContent = 'Updated ' + new Date(Store.state.updatedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+  $('ver').textContent = 'Version ' + APP_VERSION;
+}
+
+let counted = false;
+function countTo(el, to, from) {
+  const still = counted || matchMedia('(prefers-reduced-motion: reduce)').matches || from === to;
+  counted = true;
+  if (still) { el.textContent = fmt(to); return; }
+  const t0 = performance.now(), dur = 1100;
+  (function step(now) {
+    const p = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+    el.textContent = fmt(from + (to - from) * e);
+    if (p < 1) requestAnimationFrame(step);
+  })(t0);
+}
+
+/* ---------- History tab ---------- */
+function renderHistory() {
+  const m = vaultMath();
+  const balAt = Object.fromEntries(m.ledger.filter(r => !r.isAdj).map(r => [r.date, r.balance]));
+  const rows = [...Store.days.map(d => ({ date: d.date, day: d })), ...m.ledger.filter(r => r.isAdj).map(r => ({ date: r.date, adj: r }))]
+    .sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : (a.adj ? -1 : 1));
+  $('histCount').textContent = Store.days.length ? `${Store.days.length} day${Store.days.length === 1 ? '' : 's'}` : '';
+  if (!rows.length) { $('historyBox').innerHTML = `<div class="empty">Each day you log appears here as a line in the ledger.</div>`; return; }
+  let h = '', wk = null;
+  for (const r of rows) {
+    const mon = mondayOf(r.date);
+    if (mon !== wk) {
+      wk = mon;
+      const tot = m.ledger.filter(x => mondayOf(x.date) === mon).reduce((a, x) => a + x.out, 0);
+      h += `<div class="week-head"><h2>Week of ${shortDate(mon)}</h2><span><span class="num ${tot < 0 ? 'red' : 'brass'}">${tot < 0 ? '+' : '−'}${fmt(Math.abs(tot))}</span> <span class="small soft">kcal</span></span></div>`;
+    }
+    if (r.adj) {
+      h += `<div class="line"><span class="t">${dayName(r.date, { weekday: 'short', day: 'numeric' })}</span><span class="what">Scale true-up<div class="d">${esc(r.adj.reason || '')}</div></span><span class="amt"><span class="num ${r.adj.out < 0 ? 'red' : 'brass'}">${r.adj.out < 0 ? '+' : '−'}${fmt(Math.abs(r.adj.out))}</span><div class="d">${fmt(r.adj.balance)} left</div></span></div>`;
+      continue;
+    }
+    const d = r.day, e = eaten(d), w = withdrawal(d), c = counts(d) && hasBurn(d);
+    h += `<button class="line" data-date="${d.date}"><span class="t">${dayName(d.date, { weekday: 'short', day: 'numeric' })}</span><span class="what">${esc(d.dayType || 'Day')}<div class="d">${hasBurn(d) ? `${fmt(d.burn.conservative)} burned, ` : ''}${fmt(e.kcal)} eaten${d.status !== 'closed' ? '. ' + esc(STATUS_NOTE[d.status] || '') : ''}</div></span><span class="amt">${hasBurn(d) ? `<span class="num ${w < 0 ? 'red' : 'brass'}">${w < 0 ? '+' : '−'}${fmt(Math.abs(w))}</span>` : ''}<div class="d">${c ? fmt(balAt[d.date]) + ' left' : 'not counted yet'}</div></span></button>`;
+  }
+  $('historyBox').innerHTML = h;
+}
+
+/* ---------- Trends tab ---------- */
+function lineChart(pts, opts = {}) {
+  // pts: [{x: Date, y: number}], drawn in a 340x150 box
+  const W = 340, H = 150, L = 38, R = 8, T = 10, B = 22;
+  let ys = pts.map(p => p.y); if (opts.goal != null) ys.push(opts.goal);
+  let lo = Math.min(...ys), hi = Math.max(...ys); if (hi - lo < 1) { hi += 1; lo -= 1; }
+  const pad = (hi - lo) * 0.08; lo -= pad; hi += pad;
+  const x0 = pts[0].x.getTime(), x1 = Math.max(pts[pts.length - 1].x.getTime(), x0 + 864e5);
+  const X = t => L + (t - x0) / (x1 - x0) * (W - L - R), Y = v => T + (hi - v) / (hi - lo) * (H - T - B);
+  let s = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.label || 'chart')}">`;
+  for (const v of [hi - pad, (hi + lo) / 2, lo + pad]) s += `<line class="axis" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${L - 5}" y="${Y(v) + 4}" text-anchor="end">${opts.fmt ? opts.fmt(v) : v.toFixed(0)}</text>`;
+  if (opts.goal != null) s += `<line class="goal" x1="${L}" x2="${W - R}" y1="${Y(opts.goal)}" y2="${Y(opts.goal)}"/>`;
+  s += `<polyline class="ln" points="${pts.map(p => `${X(p.x.getTime()).toFixed(1)},${Y(p.y).toFixed(1)}`).join(' ')}"/>`;
+  if (pts.length <= 40) for (const p of pts) s += `<circle class="dot" r="3" cx="${X(p.x.getTime()).toFixed(1)}" cy="${Y(p.y).toFixed(1)}"/>`;
+  const f = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  s += `<text x="${L}" y="${H - 5}">${f(pts[0].x)}</text><text x="${W - R}" y="${H - 5}" text-anchor="end">${f(pts[pts.length - 1].x)}</text></svg>`;
+  return s;
+}
+function barChart(rows) {
+  const W = 340, H = 130, L = 38, R = 8, T = 8, B = 20;
+  const hi = Math.max(500, ...rows.map(r => r.out)), lo = Math.min(0, ...rows.map(r => r.out));
+  const Y = v => T + (hi - v) / (hi - lo) * (H - T - B), bw = (W - L - R) / rows.length;
+  let s = `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Calories out of the vault per day">`;
+  s += `<line class="axis" x1="${L}" x2="${W - R}" y1="${Y(0)}" y2="${Y(0)}"/><text x="${L - 5}" y="${Y(0) + 4}" text-anchor="end">0</text><text x="${L - 5}" y="${Y(hi) + 8}" text-anchor="end">${fmt(hi)}</text>`;
+  rows.forEach((r, i) => {
+    const y = r.out >= 0 ? Y(r.out) : Y(0), h = Math.abs(Y(r.out) - Y(0));
+    s += `<rect class="b ${r.out < 0 ? 'neg' : ''}" x="${(L + i * bw + bw * 0.15).toFixed(1)}" y="${y.toFixed(1)}" width="${(bw * 0.7).toFixed(1)}" height="${Math.max(1, h).toFixed(1)}"/>`;
+  });
+  s += `<text x="${L}" y="${H - 4}">${shortDate(rows[0].date)}</text><text x="${W - R}" y="${H - 4}" text-anchor="end">${shortDate(rows[rows.length - 1].date)}</text></svg>`;
+  return s;
+}
+function renderTrends() {
+  const m = vaultMath(), v = Store.state.vault, wl = weighIns();
+  let h = '';
+
+  h += `<section><div class="sec-head"><h2>Vault against the scale</h2></div>`;
+  if (wl.length >= 2 && m.nDays >= 7) {
+    const first = wl[0].lb, lastAvg = avg7(wl, wl.length - 1);
+    const scale = first - lastAvg, vault = m.out / m.kcalPerLb;
+    h += `<div class="slip"><div class="slip-row"><span>The vault says you've lost</span><span><span class="num">${vault.toFixed(1)}</span> lb</span></div><div class="slip-row"><span>The scale says (7-day average)</span><span><span class="num">${scale.toFixed(1)}</span> lb</span></div><div class="small soft">${Math.abs(vault - scale) < 1 ? 'They agree within a pound. The burn estimates are holding up.' : vault > scale ? 'The vault is ahead of the scale. If this holds for two weeks, Claude will propose a true-up and lower the burn estimates.' : 'The scale is ahead of the vault. Early weeks include water; if it holds, Claude will propose a true-up.'}</div></div>`;
+  } else {
+    h += `<div class="empty">This check starts after 7 counted days and a second weigh-in. It compares the fat the vault says you lost with what the scale shows, so the burn estimates stay honest.</div>`;
+  }
+  h += `</section>`;
+
+  h += `<section><div class="sec-head"><h2>Weight</h2><span class="soft small">goal ${v.goalWeight.toFixed(1)} lb</span></div>`;
+  h += wl.length >= 2 ? lineChart(wl.map(w => ({ x: parseDate(w.date), y: w.lb })), { goal: v.goalWeight, label: 'Weight over time', fmt: x => x.toFixed(0) })
+    : `<div class="empty">${wl.length ? `One weigh-in so far: ${wl[0].lb.toFixed(1)} lb on ${shortDate(wl[0].date)}. The chart starts with the second.` : 'No weigh-ins yet.'}</div>`;
+  h += `</section>`;
+
+  const dayRows = m.ledger.filter(r => !r.isAdj);
+  h += `<section><div class="sec-head"><h2>Out of the vault, per day</h2><span class="soft small">${dayRows.length ? 'average ' + fmt(m.avg) : ''}</span></div>`;
+  h += dayRows.length >= 2 ? barChart(dayRows.slice(-28)) : `<div class="empty">${dayRows.length ? `One counted day so far: ${fmt(dayRows[0].out)} kcal out on ${shortDate(dayRows[0].date)}.` : 'No counted days yet.'}</div>`;
+  h += `</section>`;
+
+  h += `<section><div class="sec-head"><h2>Vault balance</h2></div>`;
+  h += m.ledger.length >= 2 ? lineChart([{ x: parseDate(v.startDate), y: m.size }, ...m.ledger.map(r => ({ x: parseDate(r.date), y: r.balance }))].filter((p, i, a) => i === 0 || p.x >= a[0].x), { goal: 0, label: 'Vault balance over time', fmt: x => Math.round(x / 1000) + 'k' })
+    : `<div class="empty">The balance line starts once two days are counted.</div>`;
+  h += `</section>`;
+
+  h += `<section><div class="sec-head"><h2>How the vault works</h2></div><div class="small soft" style="padding-top:10px">The vault opened on ${shortDate(v.startDate)} holding ${fmt(m.size)} kcal: ${(v.startWeight - v.goalWeight).toFixed(1)} lb to lose at ${fmt(m.kcalPerLb)} kcal a pound. Each finished day takes out what you burned minus what you ate. Burn uses conservative figures, not the raw watch numbers. A day counts as an estimate once it ends and is closed when the final watch data arrives.</div></section>`;
+  $('trendsBox').innerHTML = h;
+}
+
+/* ---------- shell ---------- */
+let tab = 'vault';
+function render() {
+  if (!Store.state) return;
+  Store.days.sort((a, b) => a.date < b.date ? -1 : 1);
+  $('loading').hidden = true;
+  for (const t of ['vault', 'history', 'trends']) $('tab-' + t).hidden = t !== tab;
+  ({ vault: renderVault, history: renderHistory, trends: renderTrends })[tab]();
+}
+document.querySelectorAll('nav button').forEach(b => b.addEventListener('click', () => {
+  tab = b.dataset.tab;
+  document.querySelectorAll('nav button').forEach(x => x.toggleAttribute('aria-current', false));
+  b.setAttribute('aria-current', 'page');
+  render(); scrollTo(0, 0);
+}));
+$('historyBox').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-date]'); if (!b) return;
+  const d = Store.days.find(x => x.date === b.dataset.date); if (!d) return;
+  $('sheetBody').innerHTML = dayHTML(d);
+  $('daySheet').showModal(); $('daySheet').scrollTop = 0;
+});
+$('sheetBack').addEventListener('click', () => $('daySheet').close());
+document.addEventListener('gesturestart', e => e.preventDefault());
+window.VaultApp = { Store, render };
+</script>
+
+<script type="module">
+/* ---------------------------------------------------------------
+   Firebase web config. These values are public by design; access
+   is controlled by Firestore security rules. Same project as
+   life-todo. Data layout (written only by the sync job in the
+   private data repo, read-only here):
+     users/{uid}/vault/state        -> { vault, targets, weighIns, adjustments, updatedAt }
+     users/{uid}/vaultDays/{date}   -> one day
+   If window.VAULT_DATA is set (local preview), Firebase is skipped.
+---------------------------------------------------------------- */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAsxrkFkx9nfz5uPR9dv19Xb0D9paNeOLY",
+  authDomain: "life-todo-334bf.firebaseapp.com",
+  projectId: "life-todo-334bf",
+  storageBucket: "life-todo-334bf.firebasestorage.app",
+  messagingSenderId: "1062462152294",
+  appId: "1:1062462152294:web:cdb5d3f87e1eca0a3657a7"
+};
+const { Store, render } = window.VaultApp;
+const $ = id => document.getElementById(id);
+
+if (window.VAULT_DATA) {
+  Store.state = window.VAULT_DATA.state; Store.days = window.VAULT_DATA.days; render();
+} else {
+  const V = '10.14.1';
+  const { initializeApp } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
+  const { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserLocalPersistence } =
+    await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
+  const { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, collection, onSnapshot } =
+    await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
+
+  const app = initializeApp(FIREBASE_CONFIG);
+  const auth = getAuth(app);
+  await setPersistence(auth, browserLocalPersistence);
+  const db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
+  let unsubs = [];
+
+  $('authForm').addEventListener('submit', async ev => {
+    ev.preventDefault();
+    $('authErr').textContent = '';
+    const btn = $('authBtn'); btn.disabled = true; btn.textContent = 'Signing in…';
+    try {
+      await signInWithEmailAndPassword(auth, $('authEmail').value.trim(), $('authPass').value);
+    } catch (e) {
+      $('authErr').textContent = /invalid|wrong|user-not-found|credential/i.test(e.code || '')
+        ? 'Email or password is incorrect.' : 'Could not sign in. Check your connection and try again.';
+    } finally { btn.disabled = false; btn.textContent = 'Sign in'; }
+  });
+  $('signOut').hidden = false;
+  $('signOut').addEventListener('click', () => signOut(auth));
+
+  onAuthStateChanged(auth, user => {
+    unsubs.forEach(u => u()); unsubs = [];
+    $('authScreen').hidden = !!user;
+    if (!user) { Store.state = null; Store.days = []; return; }
+    let gotState = false, gotDays = false;
+    const fail = e => { $('loading').hidden = false; $('loading').textContent = e.code === 'permission-denied'
+      ? 'This account can\'t read the vault yet. The Firestore rules need the vault lines added.' : 'Could not load the vault. Check your connection.'; };
+    unsubs.push(onSnapshot(doc(db, 'users', user.uid, 'vault', 'state'), snap => {
+      gotState = true;
+      if (!snap.exists()) { $('loading').textContent = 'The vault is empty. The first sync from Claude fills it.'; return; }
+      Store.state = snap.data(); if (gotDays) render();
+    }, fail));
+    unsubs.push(onSnapshot(collection(db, 'users', user.uid, 'vaultDays'), snap => {
+      gotDays = true; Store.days = snap.docs.map(d => d.data()); if (gotState && Store.state) render();
+    }, fail));
+  });
+}
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
