@@ -1,5 +1,5 @@
 /* Minimal offline cache so the app opens without a connection. */
-const CACHE = 'vault-v1';
+const CACHE = 'vault-v2';
 const ASSETS = ['./', './index.html', './manifest.json'];
 
 self.addEventListener('install', e => {
